@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <Adafruit_GFX.h>
 #include <MCUFRIEND_kbv.h>
 MCUFRIEND_kbv tft;
@@ -14,25 +15,7 @@ TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 
 // Adafruit_GFX_Button btn_0, btn_1, btn_2, btn_3, btn_4, btn_5, btn_6, btn_7, btn_8, btn_9;
 
-// include the SD library:
-#include <SPI.h>
-#include <SD.h>
-
-// set up variables using the SD utility library functions:
-// Sd2Card card;
-// SdVolume volume;
-// SdFile root;
-File myFile;
-
-// change this to match your SD shield or module;
-// Arduino Ethernet shield: pin 4
-// Adafruit SD shields and modules: pin 10
-// Sparkfun SD shield: pin 8
-// MKRZero SD: SDCARD_SS_PIN
-const int chipSelect = 10;
-
 int pixel_x, pixel_y;     //Touch_getXY() updates global vars
-bool hold = false;
 bool Touch_getXY(void)
 {
     TSPoint p = ts.getPoint();
@@ -42,18 +25,15 @@ bool Touch_getXY(void)
     digitalWrite(YP, HIGH);   //because TFT control pins
     digitalWrite(XM, HIGH);
 
-    bool pressed = (p.z > MINPRESSURE && p.z < MAXPRESSURE);
+    bool pressed = (p.z > MINPRESSURE);
     if (pressed) {
         pixel_x = map(p.x, TS_LEFT, TS_RT, 0, tft.width()); //.kbv makes sense to me
         pixel_y = map(p.y, TS_TOP, TS_BOT, 0, tft.height());
-        Serial.println(String(p.x) + "\t" + String(p.y) + "\t" + String(pixel_x) + "\t" + String(pixel_y));
+        // Serial.println(String(p.x) + "\t" + String(p.y) + "\t" + String(pixel_x) + "\t" + String(pixel_y));
         tft.drawCircle(pixel_x, pixel_y, 1, TFT_RED);
         // delay(100);
     }
-    else
-    {
-        hold = false;
-    }
+
     return pressed;
 }
 
@@ -76,6 +56,7 @@ int max_line = 0;
 int line = 0;
 
 String data = "";
+byte data_length = 0;
 char character;
 bool inv = false;
 
@@ -94,12 +75,14 @@ bool scroll_toggle = false;
 
 // 32 as space
 // 9 ,10, 13, 32,
-byte keys[10][10] = {{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'},
+byte keys[10][10] = {
+                    // alphanumeric char
+                    {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'},
                     {'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'},
                     {'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 17},
                     {7, 'z', 'x', 'c', 'v', 'b', 'n', 'm', 24, 16}, 
                     {23, 35, 64, 32, 32, 32, 32, 27, 25, 26},
-
+                    // other char and emojie
                     {1, 2, 3, 4, 5, 6, 11, 12, 14, 15},
                     {18, 19, 20, 21, 36, 22, 28, 29, 30, 31},
                     {37, 42, 43, 45, 61, 94, 95, 38,124,126},
@@ -110,10 +93,6 @@ byte keys[10][10] = {{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'},
 void setup(void)
 {
     Serial.begin(9600);
-
-    // xTaskCreate(TaskUI, "UI", 128, NULL, 2, &TaskUI_Handler);
-    // xTaskCreate(TaskSerial, "Serial", 128, NULL, 2, &TaskSerial_Handler);
-    // xTaskCreate(TaskKeypad, "Keypad", 256, NULL, 2, &TaskKeypad_Handler);
 
     uint16_t ID = tft.readID();
     Serial.print("TFT ID = 0x");
@@ -157,94 +136,14 @@ void setup(void)
 
 void loop(void)
 {
-    Keypad();
-    while(Serial.available()>0)
-    {
-        character = Serial.read();
-        // Serial.println(int(character));
-        // tft.println(character)
-
-        switch (character)
-        {
-            case 8:
-                break;
-
-            case 9:
-                break;
-
-            case 13:
-                    if ((scroll / line_height) < max_line)
-                    {
-                        tft.fillRect(0, ((scroll / line_height) * line_height) + header_height, tft.width(), line_height, TFT_BLACK);
-                        tft.setCursor(0, ((scroll / line_height) * line_height) + header_height);
-                        tft.print("> " + data);
-
-                        Serial.print(data);
-                        // while (scroll < end)
-                        // {
-                        //     scroll += 1;
-                        //     tft.vertScroll(header_height, terminal_height, scroll);
-                        //     delay(5);
-                        // }
-                        // end += line_height;
-
-                        scroll += line_height;
-                        tft.vertScroll(header_height, terminal_height, scroll);
-                    }
-                    else
-                    {
-                        line = 0;
-                        scroll = 0;
-                        tft.vertScroll(header_height, terminal_height, scroll);
-                    }
-
-                    // tft.fillRect(0, scroll + header_height, tft.width(), line_height, TFT_BLACK);
-                    
-                    // tft.print(data);
-                    // tft.println("");
-                    // tft.println(proccess(data));
-                    // tft.print(">");
-
-                    Serial.print(scroll);
-                    Serial.print("\t");
-                    Serial.print(scroll / line_height);
-                    Serial.print("\t");
-                    Serial.print(scroll_toggle);
-                    Serial.print("\t");
-                    Serial.println(line);
-                    data = "";
-                    line++;
-                break;
-
-            case 27:
-                inv = !inv;
-                tft.invertDisplay(inv);
-                break;
-            
-            default:
-                if (int(character) != 10)
-                {
-                    data += character;
-                }
-                break;
-        }
-        
-        // if (character == 27)
-        // {
-        //     /* code */
-        // }
-        
-        // if (character == 13)
-        // {
-        //     tft.println("");
-        //     tft.print(">");
-        // }
-        // else
-        // {
-        //     data += character;
-        //     tft.print(data);
-        // }
-    }
+    // character = Keypad();
+    terminal_print(Keypad(), RED);
+    
+    // while(Serial.available()>0)
+    // {
+    //     character = Serial.read();
+        terminal_print(Serial.read(), GREEN);
+    // }
 
     // Touch_getXY();
 
@@ -300,10 +199,13 @@ bool capslock = false;
 bool sign = false;
 
 byte i0 = 0;
-void Keypad()
+
+byte return_char = 0;
+
+char Keypad()
 {
     // tft.fillRect(0, tft.height() - footer_height, tft.width(), footer_height, TFT_LIGHTGREY);
-
+    return_char = 0;
     for (byte i = 0; i < 5; i++)
     {
         for (byte j = 0; j < 10; j++)
@@ -312,11 +214,13 @@ void Keypad()
             key_y = (header_height + terminal_height) + (i * 32) + 1;
             color = TFT_DARKGREY;
 
-            if (Touch_getXY() && !hold)
+            if (Touch_getXY())
             {
                 if ((key_x < pixel_x) && (key_x > (int16_t)(pixel_x - key_w)) && (key_y < pixel_y) && (key_y > (int16_t)(pixel_y - key_h)))
                 {
-                    hold = true;
+                    if(isAlpha(char(keys[i0][j])) && capslock) return_char = char(keys[i0][j] - 32);
+                    else return_char = char(keys[i0][j]);
+                    // hold = true;
                     color = TFT_BLACK;
                     switch (keys[i][j])
                     {
@@ -328,32 +232,128 @@ void Keypad()
                         case 8:
                             keys[i][j] = 7;
                             capslock = !capslock;
-                            break;
+                        break;
 
                         case 16:
+                            return_char = 13;
                             Serial.println("> ");
-                            break;
+                        break;
 
                         case 17:
                             Serial.println("< ");
-                            break;
+                        break;
 
                         case 23:
                             sign = !sign;
-                            break;
+                        break;
 
                         default:
-                            break;
+                        break;
                     }
                 }
             }
             i0 = i + (sign * 5);
             tft.fillRoundRect(key_x, key_y, key_w, key_h, 10, color);
             tft.setTextSize(3);
+            tft.setTextColor(WHITE);
             tft.setCursor(key_x + 7, key_y + 5);
 
             if(isAlpha(char(keys[i0][j])) && capslock) tft.print(char(keys[i0][j] - 32));
             else tft.print(char(keys[i0][j]));
         }
     }
+    return return_char;
+}
+
+void terminal_print(char character_in, int color)
+{
+    tft.setTextSize(font_multiplier);
+    tft.setTextColor(color);
+    switch (character_in)
+    {
+        case 8:
+            break;
+
+        case 9:
+            break;
+
+        case 13:
+            if ((scroll / line_height) < max_line)
+            {
+                tft.fillRect(0, ((scroll / line_height) * line_height) + header_height, tft.width(), line_height, TFT_BLACK);
+                tft.setCursor(0, ((scroll / line_height) * line_height) + header_height);
+
+                data_length = data.length();
+
+                // first line command start with >
+                tft.print("> ");
+                for (byte i = 0; i < data_length; i++)
+                {
+                    tft.print(data[i]);
+                    // if the data is biger than n it 
+                    if (i%22 == 0 && i != 0)
+                    {
+                        scroll += line_height;
+                        tft.vertScroll(header_height, terminal_height, scroll);
+                        tft.println();
+                        tft.print("- ");
+                    }
+                }
+                scroll += line_height;
+                tft.vertScroll(header_height, terminal_height, scroll);
+
+            }
+            else
+            {
+                line = 0;
+                scroll = 0;
+                tft.vertScroll(header_height, terminal_height, scroll);
+            }
+
+            // tft.fillRect(0, scroll + header_height, tft.width(), line_height, TFT_BLACK);
+            
+            // tft.print(data);
+            // tft.println("");
+            // tft.println(proccess(data));
+            // tft.print(">");
+
+            Serial.print(scroll);
+            Serial.print("\t");
+            Serial.print(scroll / line_height);
+            Serial.print("\t");
+            Serial.print(scroll_toggle);
+            Serial.print("\t");
+            Serial.println(line);
+            data = "";
+            line++;
+        break;
+
+        case 27:
+            inv = !inv;
+            tft.invertDisplay(inv);
+        break;
+        
+        default:
+            if (int(character) != 10 || int(character) != 0)
+            {
+                data += character;
+            }
+        break;
+    }
+    
+    // if (character == 27)
+    // {
+    //     /* code */
+    // }
+    
+    // if (character == 13)
+    // {
+    //     tft.println("");
+    //     tft.print(">");
+    // }
+    // else
+    // {
+    //     data += character;
+    //     tft.print(data);
+    // }
 }
