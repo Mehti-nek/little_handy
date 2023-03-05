@@ -139,11 +139,11 @@ void loop(void)
     // character = Keypad();
     terminal_print(Keypad(), RED);
     
-    // while(Serial.available()>0)
-    // {
+    while(Serial.available()>0)
+    {
     //     character = Serial.read();
         terminal_print(Serial.read(), GREEN);
-    // }
+    }
 
     // Touch_getXY();
 
